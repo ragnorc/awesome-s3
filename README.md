@@ -34,12 +34,12 @@ Backup-only integrations, optional archival tiers, generic S3 clients, and objec
 - [Databend](https://github.com/databendlabs/databend) - Cloud data warehouse with a unified architecture over S3-compatible storage.
 - [GreptimeDB](https://github.com/GreptimeTeam/greptimedb) - Observability database for metrics, logs, and traces with object storage as its durable data layer.
 - [HelixDB](https://github.com/HelixDB/helix-db) - Rust graph-vector database for AI memory and knowledge graphs with S3-compatible persistence.
-- [HydraDB](https://github.com/hydra-db/hydradb) - Distributed graph database on SlateDB; graph records, WALs, manifests, and traversal indexes live in object storage.
 - [InfluxDB 3 Core](https://github.com/influxdata/influxdb) - Diskless time-series and analytics engine that stores Apache Parquet in object storage or on local disk.
 - [LanceDB](https://github.com/lancedb/lancedb) - Embedded multimodal retrieval database built on the Lance format, designed for data and indexes that live in object storage.
 - [Milvus](https://github.com/milvus-io/milvus) - Distributed vector database that persists sealed segments and indexes to object storage and can use an object-native WAL.
 - [NamiDB](https://github.com/namidb/namidb) - Embedded and server graph database whose S3-compatible bucket is the only source of truth.
 - [Neon](https://github.com/neondatabase/neon) - Serverless PostgreSQL that separates compute from a distributed storage layer backed by object storage.
+- [Omnigraph](https://github.com/ModernRelay/omnigraph) - Lakehouse-native graph database for context assembly and multi-agent coordination, storing versioned Lance data and cluster state in S3-compatible object storage.
 - [OpenData](https://github.com/opendata-oss/opendata) - Collection of object-native log, time-series, and vector databases built on SlateDB.
 - [OpenObserve](https://github.com/openobserve/openobserve) - S3-native observability platform for logs, metrics, traces, and analytics using Parquet and stateless compute.
 - [Parseable](https://github.com/parseablehq/parseable) - Observability platform with stateless compute over an object-storage-backed data lake.
