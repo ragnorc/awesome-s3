@@ -2,19 +2,15 @@
 
 > A curated list of systems that keep their durable state in S3-compatible object storage.
 
-When S3 launched in 2006, its API was deliberately small: write an object, read it by key, list a bucket. Behind that API was most of the work of running storage: capacity, replication, failed hardware, and durability. Applications got a shared namespace that could grow with their data, and paid for storage and requests as they used them. Data could outlive any machine or process that wrote it.
+When S3 launched in 2006, its API was deliberately small: write an object, read it by key, list a bucket. S3 handled capacity, replication, hardware failure, and durability behind that API. Applications got a shared namespace that grew with their data and outlived the machines that accessed it, while paying only for storage and requests.
 
-S3 became a common substrate for websites, analytics, and data lakes, but its eventual-consistency model made coordination difficult. A completed write could take time to appear in a read or listing.
+Early S3 was eventually consistent. A completed write could take time to appear in a read or listing, which made frequently updated database metadata difficult to coordinate. Databases therefore kept manifests and write-ahead log pointers close to compute, which meant attached disks and their own replication, repair, and rebalancing.
 
-Databases kept their primary state closer to compute. Frequently updated metadata such as manifests and write-ahead log pointers needs a current, ordered view. That meant attached disks, replicas, repair, and data rebalancing whenever the compute fleet changed.
+That changed in stages. GET, PUT, and LIST became strongly consistent in 2020; S3 Express One Zone added single-digit-millisecond access in 2023; conditional writes added create-if-absent and ETag-based compare-and-swap in 2024. S3 could now expose committed state immediately and atomically advance a metadata pointer. S3 Standard already supplied elastic capacity, usage-based pricing, and eleven nines of designed durability.
 
-The constraints changed in stages. S3 made GET, PUT, and LIST strongly consistent in 2020. S3 Express One Zone added single-digit-millisecond access in 2023. In 2024, conditional writes added create-if-absent and ETag-based compare-and-swap. S3 could now expose a committed object immediately and atomically advance a metadata pointer. S3 Standard already provided elastic capacity, usage-based pricing, and eleven nines of designed durability.
+Log-structured engines fit these primitives. Write-ahead log entries and immutable segments become objects; RAM and NVMe cache hot data; compaction rewrites small updates into larger objects. Compute nodes rebuild from shared state, read capacity grows by adding workers, and storage scales independently of compute. Network latency, request charges, and cache behavior remain part of the design.
 
-Log-structured storage engines map well to this API. Write-ahead log entries and immutable segments can be written as objects. RAM and NVMe cache hot data, while background compaction rewrites small updates into larger objects.
-
-Together, these changes explain the recent wave of object-native databases, logs, and filesystems. Keeping the durable copy in S3 changes the shape of a cluster. Failed compute nodes rebuild from shared state. Read capacity grows by adding workers and caches. Idle compute can be removed without moving the dataset. Multiple services can work from the same immutable objects. Storage and compute can grow at different rates.
-
-Network latency, request charges, compaction, and cache behavior remain part of the design. This list collects systems built around those properties.
+This list collects systems built around those properties.
 
 "S3" is shorthand here for the wider object-storage model. Many projects also support Google Cloud Storage, Azure Blob Storage, Cloudflare R2, MinIO, Tigris, and other S3-compatible services.
 
@@ -32,13 +28,15 @@ Network latency, request charges, compaction, and cache behavior remain part of 
 
 A project belongs when object storage is its system of record, write-ahead log, or authoritative immutable table state. It should be designed around object-store primitives and trade-offs such as conditional writes, immutable objects, batching, compaction, caching, request cost, and higher latency.
 
+Supporting libraries, caches, and table formats belong when they are purpose-built for, or widely used by, object-native systems.
+
 Backup-only integrations, optional archival tiers, generic S3 clients, and object-storage servers are outside the scope of this list.
 
 ## Databases, search, and observability
 
 - [Databend](https://github.com/databendlabs/databend) - Cloud data warehouse with a unified architecture over S3-compatible storage.
 - [GreptimeDB](https://github.com/GreptimeTeam/greptimedb) - Observability database for metrics, logs, and traces with object storage as its durable data layer.
-- [HelixDB](https://github.com/HelixDB/helix-db) - Rust graph-vector database for AI memory and knowledge graphs with S3-compatible persistence.
+- [HelixDB](https://github.com/HelixDB/helix-db) - Rust graph-vector database for AI memory and knowledge graphs that supports persistent S3-compatible storage.
 - [InfluxDB 3 Core](https://github.com/influxdata/influxdb) - Diskless time-series and analytics engine that stores Apache Parquet in object storage or on local disk.
 - [LanceDB](https://github.com/lancedb/lancedb) - Embedded multimodal retrieval database built on the Lance format, designed for data and indexes that live in object storage.
 - [Milvus](https://github.com/milvus-io/milvus) - Distributed vector database that persists sealed segments and indexes to object storage and can use an object-native WAL.
@@ -46,8 +44,8 @@ Backup-only integrations, optional archival tiers, generic S3 clients, and objec
 - [Neon](https://github.com/neondatabase/neon) - Serverless PostgreSQL that separates compute from a distributed storage layer backed by object storage.
 - [Omnigraph](https://github.com/ModernRelay/omnigraph) - Object-storage-native graph database with Git-style branching and merge workflows, built in Rust on Lance.
 - [OpenData](https://github.com/opendata-oss/opendata) - Collection of object-native log, time-series, and vector databases built on SlateDB.
-- [OpenObserve](https://github.com/openobserve/openobserve) - S3-native observability platform for logs, metrics, traces, and analytics using Parquet and stateless compute.
-- [Parseable](https://github.com/parseablehq/parseable) - Observability platform with stateless compute over an object-storage-backed data lake.
+- [OpenObserve](https://github.com/openobserve/openobserve) - S3-native observability platform for logs, metrics, and traces, with WAL-backed ingesters and stateless query nodes over Parquet.
+- [Parseable](https://github.com/parseablehq/parseable) - Object-storage-first observability platform that stages writes locally, stores Parquet in object storage, and scales ingestion and query nodes independently.
 - [Quickwit](https://github.com/quickwit-oss/quickwit) - Cloud-native search engine that runs sub-second searches directly against immutable indexes in object storage.
 - [RisingWave](https://github.com/risingwavelabs/risingwave) - Streaming database whose Hummock storage engine keeps tables, materialized views, and internal state in object storage with local caching.
 - [TiDB X](https://docs.pingcap.com/tidbcloud/tidb-x-architecture/) - Distributed SQL architecture that uses object storage as the single source of truth and a shared row and columnar cache for performance.
@@ -57,7 +55,7 @@ Backup-only integrations, optional archival tiers, generic S3 clients, and objec
 
 - [AutoMQ](https://github.com/AutoMQ/automq) - Diskless Kafka built around a shared S3 storage engine, configurable WAL, and stateless brokers.
 - [Oswald](https://github.com/nvartolomei/oswald) - Experimental write-ahead log built exclusively from object-storage primitives.
-- [S2](https://github.com/s2-streamstore/s2) - Durable Streams API whose open-source Lite implementation uses SlateDB and acknowledges data only after object-store durability.
+- [S2](https://github.com/s2-streamstore/s2) - Durable Streams API whose open-source Lite implementation uses SlateDB and, in object-storage mode, acknowledges writes only after they are durable in the bucket.
 - [WarpStream](https://www.warpstream.com/) - Diskless Kafka-compatible streaming platform that writes directly to object storage from stateless agents.
 - [Woodpecker](https://github.com/zilliztech/woodpecker) - Cloud-native WAL for Milvus and other systems, with object storage as the durable log backend.
 
@@ -88,7 +86,7 @@ Backup-only integrations, optional archival tiers, generic S3 clients, and objec
 - [Apache Iceberg](https://github.com/apache/iceberg) - Open table format for large analytic datasets stored in object storage.
 - [Apache Paimon](https://github.com/apache/paimon) - Lake format for streaming and batch workloads with LSM-style updates over object storage.
 - [Delta Lake](https://github.com/delta-io/delta) - Transactional storage framework for lakehouse tables on cloud object stores.
-- [DuckLake](https://github.com/duckdb/ducklake) - Lakehouse format that keeps table data in object storage and metadata in a SQL database.
+- [DuckLake](https://github.com/duckdb/ducklake) - Lakehouse format that keeps metadata in a SQL database and stores table data as Parquet on local or object storage.
 - [Lance](https://github.com/lance-format/lance) - Open lakehouse format for multimodal AI with vector search, random access, versioning, and object-store support.
 
 ## Reading
