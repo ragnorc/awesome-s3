@@ -2,13 +2,21 @@
 
 > A curated list of systems that use S3-compatible object storage as a primary architectural primitive.
 
-Object storage is moving from the backup path into the write path. A growing class of databases, logs, filesystems, and developer tools keeps durable state in S3-compatible storage, puts RAM or NVMe caches in front, and treats compute as disposable.
+The idea connecting these systems is simple: **the machine doing the work no longer has to own the durable copy of the data.**
+
+Traditional data systems couple compute to a fleet of disks. Making that fleet durable means replication; adding, removing, or recovering a node means moving state. S3 changes the boundary by **disaggregating storage from compute**. It offers elastic capacity from gigabytes to exabytes, usage-based pricing instead of pre-provisioned disks, and eleven nines of designed durability. A compute node can arrive, fill a RAM or NVMe cache, do work, and disappear while the durable dataset remains shared and independently scalable.
+
+The abstraction remains deliberately small, but its semantics have become much more useful since S3 launched in 2006. Strong read-after-write and list consistency make committed state immediately visible. Conditional writes provide single-object compare-and-swap semantics: create a key only if it is absent, or update it only if its ETag still matches. That is enough to safely publish a manifest, advance a commit or WAL pointer, and reject a stale writer without putting every metadata transition behind a separate coordinator. S3 Express One Zone pushes the same model into the single-digit-millisecond range for latency-sensitive workloads.
+
+The architecture works by giving each layer one job:
 
 ```text
-durability  -> object storage
-performance -> RAM / NVMe cache
-compute     -> stateless and elastic
+object storage -> durable source of truth
+RAM / NVMe     -> disposable performance cache
+compute        -> stateless, elastic, replaceable
 ```
+
+Object-native systems write immutable segments or batched WAL entries, coordinate through small conditional metadata objects, compact in the background, and serve hot data from local caches. S3 is not faster than NVMe; the useful comparison is with the replicated disk fleet required to make local storage durable and highly available. The trade is cold-read latency, request charges, write amplification, and cache complexity in exchange for durable capacity on demand, less replication and rebalancing machinery, and compute that can scale independently of the data.
 
 "S3" is shorthand here for the wider object-storage model. Many projects also support Google Cloud Storage, Azure Blob Storage, Cloudflare R2, MinIO, Tigris, and other S3-compatible services.
 
@@ -21,7 +29,6 @@ compute     -> stateless and elastic
 - [Filesystems and version control](#filesystems-and-version-control)
 - [Table formats and lakehouses](#table-formats-and-lakehouses)
 - [Reading](#reading)
-- [The X pulse](#the-x-pulse)
 
 ## What belongs here
 
@@ -34,12 +41,12 @@ Backup-only integrations, optional archival tiers, generic S3 clients, and objec
 - [Databend](https://github.com/databendlabs/databend) - Cloud data warehouse with a unified architecture over S3-compatible storage.
 - [GreptimeDB](https://github.com/GreptimeTeam/greptimedb) - Observability database for metrics, logs, and traces with object storage as its durable data layer.
 - [HelixDB](https://github.com/HelixDB/helix-db) - Rust graph-vector database for AI memory and knowledge graphs with S3-compatible persistence.
-- [HydraDB](https://github.com/hydra-db/hydradb) - Distributed graph database on SlateDB; graph records, WALs, manifests, and traversal indexes live in object storage.
 - [InfluxDB 3 Core](https://github.com/influxdata/influxdb) - Diskless time-series and analytics engine that stores Apache Parquet in object storage or on local disk.
 - [LanceDB](https://github.com/lancedb/lancedb) - Embedded multimodal retrieval database built on the Lance format, designed for data and indexes that live in object storage.
 - [Milvus](https://github.com/milvus-io/milvus) - Distributed vector database that persists sealed segments and indexes to object storage and can use an object-native WAL.
 - [NamiDB](https://github.com/namidb/namidb) - Embedded and server graph database whose S3-compatible bucket is the only source of truth.
 - [Neon](https://github.com/neondatabase/neon) - Serverless PostgreSQL that separates compute from a distributed storage layer backed by object storage.
+- [Omnigraph](https://github.com/ModernRelay/omnigraph) - Lakehouse-native graph database for context assembly and multi-agent coordination, storing versioned Lance data and cluster state in S3-compatible object storage.
 - [OpenData](https://github.com/opendata-oss/opendata) - Collection of object-native log, time-series, and vector databases built on SlateDB.
 - [OpenObserve](https://github.com/openobserve/openobserve) - S3-native observability platform for logs, metrics, traces, and analytics using Parquet and stateless compute.
 - [Parseable](https://github.com/parseablehq/parseable) - Observability platform with stateless compute over an object-storage-backed data lake.
@@ -88,22 +95,16 @@ Backup-only integrations, optional archival tiers, generic S3 clients, and objec
 
 ## Reading
 
+- [Amazon S3](https://aws.amazon.com/s3/) - AWS's overview of S3's elastic capacity, usage-based model, and eleven nines of designed durability.
+- [Amazon S3 is now strongly consistent](https://aws.amazon.com/blogs/aws/amazon-s3-update-strong-read-after-write-consistency/) - The 2020 change that made every GET, PUT, and LIST operation strongly consistent.
 - [Building a Database on S3](https://cs.brown.edu/people/tkraska/pub/sigmod08-s3.pdf) - The 2008 SIGMOD paper that explored transactions with stateless clients, S3 pages, and SQS as the log.
 - [Conditional writes in Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html) - The compare-and-swap-style primitives behind many object-native coordination protocols.
 - [Git at any scale](https://cursor.com/blog/git-at-any-scale) - Cursor's account of building Origin around an S3 WAL, Git replicas, and compaction.
+- [S3 Express One Zone](https://aws.amazon.com/s3/storage-classes/express-one-zone/) - A single-Availability-Zone storage class with single-digit-millisecond access for latency-sensitive workloads.
 - [S3 is the new network](https://www.pingcap.com/blog/s3-new-network-cloud-object-storage-database-architecture/) - PingCAP on the object-storage-first design of TiDB X.
 - [SlateDB design](https://slatedb.io/docs/design/overview/) - How an LSM-tree changes when the durable medium is an object store rather than a local disk.
 - [turbopuffer: fast search on object storage](https://turbopuffer.com/blog/turbopuffer) - The economics and cache hierarchy behind object-native search.
 - [Zero Disks is Better for Kafka](https://www.warpstream.com/blog/zero-disks-is-better-for-kafka) - WarpStream's case for replacing replicated broker disks with object storage.
-
-## The X pulse
-
-- ["Put it on the object store" remains undefeated](https://x.com/nikitabase/status/2089879513626759322) - The viral taxonomy: OLAP, OLTP, Kafka, vector search, and Git.
-- [Cursor introduces Origin](https://x.com/cursor_ai/status/2089758713183613266) - The post that kicked off the current Git-as-a-database discussion.
-- [S3 + cache is eating infra](https://x.com/DXhusni/status/2090439798620336183) - An eight-post walkthrough of an append-only WAL, content-addressed segments, a mutable head, and compare-and-swap.
-- [A SlateDB-backed Git server](https://x.com/almoggavra/status/2089819903830433836) - A comparison between Git packfile compaction and SST compaction.
-- [A WAL on S3 with caching servers in front](https://x.com/jhleath/status/2090097192698876276) - The argument that databases and Git systems are independently rebuilding the same storage stack.
-- [The "on object storage" era](https://x.com/nikitabase/status/2052850888591695897) - A longer explanation of the pattern across turbopuffer, WarpStream, and Neon.
 
 ## Contributing
 
