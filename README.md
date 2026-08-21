@@ -1,22 +1,20 @@
 # Awesome S3 [![Awesome](https://awesome.re/badge-flat2.svg)](https://awesome.re)
 
-> A curated list of systems that use S3-compatible object storage as a primary architectural primitive.
+> A curated list of systems that keep their durable state in S3-compatible object storage.
 
-The idea connecting these systems is simple: **the machine doing the work no longer has to own the durable copy of the data.**
+When S3 launched in 2006, its API was deliberately small: write an object, read it by key, list a bucket. Behind that API was most of the work of running storage: capacity, replication, failed hardware, and durability. Applications got a shared namespace that could grow with their data, and paid for storage and requests as they used them. Data could outlive any machine or process that wrote it.
 
-Traditional data systems couple compute to a fleet of disks. Making that fleet durable means replication; adding, removing, or recovering a node means moving state. S3 changes the boundary by **disaggregating storage from compute**. It offers elastic capacity from gigabytes to exabytes, usage-based pricing instead of pre-provisioned disks, and eleven nines of designed durability. A compute node can arrive, fill a RAM or NVMe cache, do work, and disappear while the durable dataset remains shared and independently scalable.
+S3 became a common substrate for websites, analytics, and data lakes, but its eventual-consistency model made coordination difficult. A completed write could take time to appear in a read or listing.
 
-The abstraction remains deliberately small, but its semantics have become much more useful since S3 launched in 2006. Strong read-after-write and list consistency make committed state immediately visible. Conditional writes provide single-object compare-and-swap semantics: create a key only if it is absent, or update it only if its ETag still matches. That is enough to safely publish a manifest, advance a commit or WAL pointer, and reject a stale writer without putting every metadata transition behind a separate coordinator. S3 Express One Zone pushes the same model into the single-digit-millisecond range for latency-sensitive workloads.
+Databases kept their primary state closer to compute. Frequently updated metadata such as manifests and write-ahead log pointers needs a current, ordered view. That meant attached disks, replicas, repair, and data rebalancing whenever the compute fleet changed.
 
-The architecture works by giving each layer one job:
+The constraints changed in stages. S3 made GET, PUT, and LIST strongly consistent in 2020. S3 Express One Zone added single-digit-millisecond access in 2023. In 2024, conditional writes added create-if-absent and ETag-based compare-and-swap. S3 could now expose a committed object immediately and atomically advance a metadata pointer. S3 Standard already provided elastic capacity, usage-based pricing, and eleven nines of designed durability.
 
-```text
-object storage -> durable source of truth
-RAM / NVMe     -> disposable performance cache
-compute        -> stateless, elastic, replaceable
-```
+Log-structured storage engines map well to this API. Write-ahead log entries and immutable segments can be written as objects. RAM and NVMe cache hot data, while background compaction rewrites small updates into larger objects.
 
-Object-native systems write immutable segments or batched WAL entries, coordinate through small conditional metadata objects, compact in the background, and serve hot data from local caches. S3 is not faster than NVMe; the useful comparison is with the replicated disk fleet required to make local storage durable and highly available. The trade is cold-read latency, request charges, write amplification, and cache complexity in exchange for durable capacity on demand, less replication and rebalancing machinery, and compute that can scale independently of the data.
+Together, these changes explain the recent wave of object-native databases, logs, and filesystems. Keeping the durable copy in S3 changes the shape of a cluster. Failed compute nodes rebuild from shared state. Read capacity grows by adding workers and caches. Idle compute can be removed without moving the dataset. Multiple services can work from the same immutable objects. Storage and compute can grow at different rates.
+
+Network latency, request charges, compaction, and cache behavior remain part of the design. This list collects systems built around those properties.
 
 "S3" is shorthand here for the wider object-storage model. Many projects also support Google Cloud Storage, Azure Blob Storage, Cloudflare R2, MinIO, Tigris, and other S3-compatible services.
 
@@ -96,6 +94,7 @@ Backup-only integrations, optional archival tiers, generic S3 clients, and objec
 ## Reading
 
 - [Amazon S3](https://aws.amazon.com/s3/) - AWS's overview of S3's elastic capacity, usage-based model, and eleven nines of designed durability.
+- [Amazon S3 launch announcement](https://press.aboutamazon.com/2006/3/amazon-web-services-launches) - The original 2006 description of its minimal object API, unlimited objects, and usage-based pricing.
 - [Amazon S3 is now strongly consistent](https://aws.amazon.com/blogs/aws/amazon-s3-update-strong-read-after-write-consistency/) - The 2020 change that made every GET, PUT, and LIST operation strongly consistent.
 - [Building a Database on S3](https://cs.brown.edu/people/tkraska/pub/sigmod08-s3.pdf) - The 2008 SIGMOD paper that explored transactions with stateless clients, S3 pages, and SQS as the log.
 - [Conditional writes in Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html) - The compare-and-swap-style primitives behind many object-native coordination protocols.
