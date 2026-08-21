@@ -2,7 +2,11 @@
 
 > A curated list of systems that use S3-compatible object storage as a primary architectural primitive.
 
-Object storage is moving from the backup path into the write path. A growing class of databases, logs, filesystems, and developer tools keeps durable state in S3-compatible storage, puts RAM or NVMe caches in front, and treats compute as disposable.
+S3 launched in 2006 around a deliberately small abstraction: objects addressed by key, elastic capacity, pay-as-you-go pricing, and data stored redundantly across locations. From the beginning, applications used it for websites, archives, enterprise data, analytics, and eventually vast data lakes. Its eventual-consistency model and the latency of accessing remote objects, however, made database coordination harder.
+
+The substrate has since changed. S3 gained strong read-after-write and list consistency in 2020. Conditional writes now let a client create an object only if it is absent or replace it only if its ETag still matches, providing the compare-and-swap primitive needed for manifests, leases, and commit pointers. Newer tiers such as S3 Express One Zone also bring object access into the single-digit-millisecond range for latency-sensitive workloads.
+
+Object-native systems use these properties without pretending S3 is a local disk. They write large immutable files, coordinate through small conditional metadata objects, batch and compact updates, and keep hot data in RAM or NVMe. Compute nodes can then be replaced or scaled without first copying a durable dataset between them. The payoff is a shared durable substrate that outlives any compute node and can be read by many services. The cost is cold-read latency, request charges, and more careful cache and data-layout design.
 
 ```text
 durability  -> object storage
@@ -21,7 +25,6 @@ compute     -> stateless and elastic
 - [Filesystems and version control](#filesystems-and-version-control)
 - [Table formats and lakehouses](#table-formats-and-lakehouses)
 - [Reading](#reading)
-- [The X pulse](#the-x-pulse)
 
 ## What belongs here
 
@@ -88,22 +91,15 @@ Backup-only integrations, optional archival tiers, generic S3 clients, and objec
 
 ## Reading
 
+- [Amazon S3 is now strongly consistent](https://aws.amazon.com/blogs/aws/amazon-s3-update-strong-read-after-write-consistency/) - The 2020 change that made every GET, PUT, and LIST operation strongly consistent.
 - [Building a Database on S3](https://cs.brown.edu/people/tkraska/pub/sigmod08-s3.pdf) - The 2008 SIGMOD paper that explored transactions with stateless clients, S3 pages, and SQS as the log.
 - [Conditional writes in Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html) - The compare-and-swap-style primitives behind many object-native coordination protocols.
 - [Git at any scale](https://cursor.com/blog/git-at-any-scale) - Cursor's account of building Origin around an S3 WAL, Git replicas, and compaction.
+- [S3 Express One Zone](https://aws.amazon.com/s3/storage-classes/express-one-zone/) - A single-Availability-Zone storage class with single-digit-millisecond access for latency-sensitive workloads.
 - [S3 is the new network](https://www.pingcap.com/blog/s3-new-network-cloud-object-storage-database-architecture/) - PingCAP on the object-storage-first design of TiDB X.
 - [SlateDB design](https://slatedb.io/docs/design/overview/) - How an LSM-tree changes when the durable medium is an object store rather than a local disk.
 - [turbopuffer: fast search on object storage](https://turbopuffer.com/blog/turbopuffer) - The economics and cache hierarchy behind object-native search.
 - [Zero Disks is Better for Kafka](https://www.warpstream.com/blog/zero-disks-is-better-for-kafka) - WarpStream's case for replacing replicated broker disks with object storage.
-
-## The X pulse
-
-- ["Put it on the object store" remains undefeated](https://x.com/nikitabase/status/2089879513626759322) - The viral taxonomy: OLAP, OLTP, Kafka, vector search, and Git.
-- [Cursor introduces Origin](https://x.com/cursor_ai/status/2089758713183613266) - The post that kicked off the current Git-as-a-database discussion.
-- [S3 + cache is eating infra](https://x.com/DXhusni/status/2090439798620336183) - An eight-post walkthrough of an append-only WAL, content-addressed segments, a mutable head, and compare-and-swap.
-- [A SlateDB-backed Git server](https://x.com/almoggavra/status/2089819903830433836) - A comparison between Git packfile compaction and SST compaction.
-- [A WAL on S3 with caching servers in front](https://x.com/jhleath/status/2090097192698876276) - The argument that databases and Git systems are independently rebuilding the same storage stack.
-- [The "on object storage" era](https://x.com/nikitabase/status/2052850888591695897) - A longer explanation of the pattern across turbopuffer, WarpStream, and Neon.
 
 ## Contributing
 
