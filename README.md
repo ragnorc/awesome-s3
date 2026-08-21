@@ -8,7 +8,7 @@ Traditional data systems couple compute to a fleet of disks. Making that fleet d
 
 The abstraction remains deliberately small, but its semantics have become much more useful since S3 launched in 2006. Strong read-after-write and list consistency make committed state immediately visible. Conditional writes provide single-object compare-and-swap semantics: create a key only if it is absent, or update it only if its ETag still matches. That is enough to safely publish a manifest, advance a commit or WAL pointer, and reject a stale writer without putting every metadata transition behind a separate coordinator. S3 Express One Zone pushes the same model into the single-digit-millisecond range for latency-sensitive workloads.
 
-On X, builders compress the pattern into phrases such as [**“put it on the object store,”**](https://x.com/nikitabase/status/2089879513626759322) [**“zero-disk,”**](https://x.com/iavins/status/1860704282548593106) and [**“your SSD is a cache.”**](https://x.com/siddontang/status/2034072603372228941) The actual architecture is more precise:
+The architecture works by giving each layer one job:
 
 ```text
 object storage -> durable source of truth
